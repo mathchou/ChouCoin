@@ -1,0 +1,127 @@
+ /*
+The function GenerateRSAkey() will take in any number you choose
+and return an RSA key for you in the form <p,q,N,e,d>.
+It's important to keep p,q, and d all SECRET, this is your SECRET KEY.
+You will then announce to the world (class) what your N and e are.
+You will see in later functions the place where you put somebody's value of N and e.
+*/
+
+function GenerateRSAkey(seed)
+    SetSeed(seed);
+    p:=0;
+    q:=0;
+    x:=Random(10^140, 10^150);
+    for i:=1 to 10000 do
+        if IsProbablyPrime(x) then
+            p:=x;
+            break i;
+        elif IsEven(x) then
+            x:=x+1;
+        elif IsOdd(x) then
+            x:=x+2;
+        end if;
+    end for;
+    y:=Random(10^140, 10^150);
+    for i:=1 to 10000 do
+        if IsProbablyPrime(y) then
+            q:=y;
+            break i;
+        elif IsEven(y) then
+            y:=y+1;
+        elif IsOdd(x) then
+            y:=y+2;
+        end if;
+    end for;
+    N:=p*q;
+    e:=1;
+    z:=Random(30,100);
+    for i:=1 to 10000 do
+        if IsOdd(z) then
+            if Gcd(z,(p-1)*(q-1)) eq 1 then
+                e:=z;
+                break i;     
+            else
+                z:=z+2;
+            end if;
+        else
+            z:=z+1;
+        end if;
+    end for;
+    d:= (Integers((p-1)*(q-1))!e)^(-1);
+    return <p,q,N,e,d>;
+end function;
+
+/*
+The following two functions "RSAsign" and "RSAverify" are used to digitally sign your messages.
+"N" is the product of your two SECRET primes, and "d" is your SECRET encryption algorithm (so only you can sign your messages).
+This N and d are from the key you made for yourself above using GenerateRSAkey().
+The number "N" and the number "e" will be publically available, so that others may verify using RSAverify that your message
+	was indeed signed by you.
+*/
+
+function RSAsign(message, N, d)
+	m := Hash(message);
+	signature := (Integers(N)!m)^d;
+	return message cat "***" cat IntegerToString(Integers()!signature);
+end function;
+
+function RSAverify(signedmessage, N, e)
+	message:= Split(signedmessage, "***")[1];
+	signature:= Split(signedmessage, "***")[2];
+	signature:=StringToInteger(signature,10);
+	return Hash(message) eq (Integers(N)!signature)^e;
+end function;
+
+/*
+The following pieces of code are used to create and verify new blocks
+Remember, it is important that the list of messages is put in the proper format
+(as well as the previous block's hash before any message),
+we will use new lines bewteen each transaction.
+It will look like a series of posts, and we will arrange it into a string that uses linebreaks.
+
+Ex:
+
+blocktext:="BLOCKNUMBER: $5$ 62134352619
+TIME: 8/28/18, 13:15:12, Michael gives 3 Choucoin to Charlie.***941201
+TIME: 8/29/18, 18:13:47, Michael gives 10 Choucoin to Bob.***33011
+TIME: 8/29/18, 18:14:00, Michael gives 10 Choucoin to Alice.***5320";
+*/
+
+function MineBlock(yourname, blocktext)
+	BlockIndex:=StringToInteger(Split(blocktext, "$")[2],10);
+	Tag:=IntegerToString(Random(1,10^50));
+	newblocktext:= yourname cat " gets 1 Choucoin" cat "
+" cat blocktext cat "
+" cat "###" cat Tag;
+	if IsDivisibleBy(Hash(newblocktext),10^7) then
+		print "Succesful mining with tag = ", Tag;
+		newblocktext:= newblocktext cat "###" cat IntegerToString(Hash(newblocktext));
+		return [*true, newblocktext*];
+	else
+		return [*false, newblocktext*];
+	end if;
+end function;
+
+//the following loop will run the attempt to mine a block 10,000 times (you can change)
+//and if succesful, it will provide the mined block text (to be published to us all on the forum)
+//replace "Michael" with your own name (unless you want to give me your choucoin!)
+//to attempt multiple times, make sure you change the SetSeed value to a different number!
+
+SetSeed(1234567);
+for i:=1 to 10^7 do
+    Attempt:=MineBlock("Michael",blocktext);
+    if Attempt[1] eq true then
+        newblock:=Attempt[2];
+        print Attempt[2];
+        break i;
+    end if;
+end for;
+
+//Finally, here is code that will verify that a posted block is legitimate.
+//It will return "true" if the block is legitimate, and "false" otherwise.
+
+function VerifyBlock(blocktext)
+	block:=Split(blocktext, "###")[1] cat "###" cat Split(blocktext, "###")[2];
+	blockhash:=Split(blocktext, "###")[3];
+	return IntegerToString(Hash(block)) eq blockhash;
+end function;
